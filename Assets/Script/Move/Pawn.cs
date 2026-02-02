@@ -46,6 +46,17 @@ public class Pawn : FirstActionPieces
 
             return net;
         }
+        protected override NetMoveType GetNetMoveType()
+        {
+            if (promote != null)
+                return NetMoveType.Promotion;
+
+            // 앙파상은 Pawn만 알 수 있음
+            if (KillActor is Pawn)
+                return NetMoveType.EnPassant;
+
+            return base.GetNetMoveType();
+        }
     }
 
     int enpassantTarget = 0;
