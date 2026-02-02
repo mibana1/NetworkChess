@@ -7,10 +7,12 @@ public class TurnManager : MonoBehaviourPun
 {
     public static TurnManager Instance;
 
+    private const byte TurnChangeEventCode = 1;
+    private const byte MoveEventCode = 2;
+
     public ChessTeam CurrentTurn { get; private set; }
 
-    // Photon RaiseEvent 코드 (겹치지 않게 관리)
-    private const byte TurnChangeEventCode = 1;
+    [SerializeField] private ChessBoard board;
 
     private void Awake()
     {
@@ -37,8 +39,13 @@ public class TurnManager : MonoBehaviourPun
         PhotonNetwork.NetworkingClient.EventReceived -= OnEventReceived;
     }
 
+    public void SetBoard(ChessBoard chessBoard)
+    {
+        board = chessBoard;
+    }
+
     /// <summary>
-    /// 내 턴인지 확인 (모든 입력, 선택 전에 반드시 사용)
+    /// 내 턴인지 확인
     /// </summary>
     public bool IsMyTurn()
     {
@@ -46,8 +53,7 @@ public class TurnManager : MonoBehaviourPun
     }
 
     /// <summary>
-    /// 말 이동이 끝났을 때 호출
-    /// MasterClient만 실제로 턴을 변경함
+    /// MasterClient만 턴 변경
     /// </summary>
     public void EndTurn()
     {
@@ -58,9 +64,6 @@ public class TurnManager : MonoBehaviourPun
         BroadcastTurn();
     }
 
-    /// <summary>
-    /// 턴 변경 로직 (서버 권한)
-    /// </summary>
     private void SwitchTurn()
     {
         CurrentTurn = (CurrentTurn == ChessTeam.White)
@@ -68,9 +71,6 @@ public class TurnManager : MonoBehaviourPun
             : ChessTeam.White;
     }
 
-    /// <summary>
-    /// 턴 변경을 모든 클라이언트에 알림
-    /// </summary>
     private void BroadcastTurn()
     {
         object[] data = new object[]
@@ -78,30 +78,137 @@ public class TurnManager : MonoBehaviourPun
             (int)CurrentTurn
         };
 
-        RaiseEventOptions options = new RaiseEventOptions
-        {
-            Receivers = ReceiverGroup.All
-        };
-
         PhotonNetwork.RaiseEvent(
             TurnChangeEventCode,
             data,
-            options,
+            new RaiseEventOptions { Receivers = ReceiverGroup.All },
             SendOptions.SendReliable
         );
     }
 
-    /// <summary>
-    /// 턴 변경 이벤트 수신
-    /// </summary>
     private void OnEventReceived(EventData photonEvent)
     {
-        if (photonEvent.Code != TurnChangeEventCode)
+        if (photonEvent.Code == MoveEventCode)
+        {
+            NetAction net = (NetAction)photonEvent.CustomData;
+
+            if (PhotonNetwork.IsMasterClient)
+            {
+                // 서버 권한 이동 적용
+                ApplyMove(net);
+
+                // 턴 변경
+                EndTurn();
+
+                PhotonNetwork.RaiseEvent(
+                    MoveEventCode,
+                    net,
+                    new RaiseEventOptions { Receivers = ReceiverGroup.All },
+                    SendOptions.SendReliable
+                );
+            }
+            else
+            {
+                ApplyMove(net);
+            }
+            return;
+        }
+
+        if (photonEvent.Code == TurnChangeEventCode)
+        {
+            object[] data = (object[])photonEvent.CustomData;
+            CurrentTurn = (ChessTeam)(int)data[0];
+
+            Debug.Log($"[TurnManager] 현재 턴: {CurrentTurn}");
+            return;
+        }
+    }
+
+    private void ApplyMove(NetAction net)
+    {
+        if (board == null)
+        {
+            Debug.LogError("[TurnManager] ChessBoard reference is null.");
+            return;
+        }
+
+        // 기본 이동
+        var action = ActionFactory.Apply(net, board);
+        action.Redo();
+
+        // 특수 수 처리
+        ApplySpecialMove(net);
+    }
+
+
+    private void ApplySpecialMove(NetAction net)
+    {
+        switch (net.netMoveType)
+        {
+            case NetMoveType.Castling:
+                ApplyCastling(net);
+                break;
+
+            case NetMoveType.EnPassant:
+                ApplyEnPassant(net);
+                break;
+
+            case NetMoveType.Promotion:
+                break;
+        }
+    }
+
+    // 캐슬링
+    private void ApplyCastling(NetAction net)
+    {
+        Pieces king = board.GetPieceById(net.pieceId);
+        if (king is not King)
             return;
 
-        object[] data = (object[])photonEvent.CustomData;
-        CurrentTurn = (ChessTeam)(int)data[0];
+        int y = net.to.Y;
 
-        Debug.Log($"[TurnManager] 현재 턴: {CurrentTurn}");
+        if (net.to.X == 6)
+        {
+            var rookFrom = new GridIndex(7, y);
+            var rookTo = new GridIndex(5, y);
+
+            if (board[rookFrom] is Rook rook)
+            {
+                var rookAction = rook.MoveTo(rookTo);
+                rookAction.Redo();
+            }
+        }
+        else if (net.to.X == 2)
+        {
+            var rookFrom = new GridIndex(0, y);
+            var rookTo = new GridIndex(3, y);
+
+            if (board[rookFrom] is Rook rook)
+            {
+                var rookAction = rook.MoveTo(rookTo);
+                rookAction.Redo();
+            }
+        }
+    }
+
+    // 앙파상
+    private void ApplyEnPassant(NetAction net)
+    {
+        Pieces pawn = board.GetPieceById(net.pieceId);
+        if (pawn is not Pawn p)
+            return;
+
+        int killedY = p.Team == ChessTeam.White
+            ? net.to.Y + 1
+            : net.to.Y - 1;
+
+        var killedIndex = new GridIndex(net.to.X, killedY);
+        Pieces killedPawn = board[killedIndex];
+
+        if (killedPawn != null)
+        {
+            Destroy(killedPawn.gameObject);
+            board[killedIndex] = null;
+        }
     }
 }
