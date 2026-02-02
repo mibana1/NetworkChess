@@ -1,4 +1,7 @@
-﻿using System;
+﻿using ExitGames.Client.Photon;
+using Photon.Pun;
+using Photon.Realtime;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -139,14 +142,11 @@ public partial class ActionManager
             var seq = from.QueryMovable(MoveType.Attack);
             seq.Build(board, MoveType.Attack);
 
-            if (seq.ContainsMove(to.CellIndex)) {
-                var fromIndex = from.CellIndex;
+            if (seq.ContainsMove(to.CellIndex))
+            {
                 var action = from.MoveTo(to.CellIndex);
 
-                undoStack.Push(ActionCommand.SimpleMove(action));
-                redoStack.Clear();
-                GenericAction();
-                board.Turnover();
+                SendMoveToServer(action);
             }
         }
     }
@@ -156,14 +156,11 @@ public partial class ActionManager
         var seq = from.QueryMovable(MoveType.StandardMove);
         seq.Build(board, MoveType.StandardMove);
 
-        if (seq.ContainsMove(to)) {
-            var fromIndex = from.CellIndex;
+        if (seq.ContainsMove(to))
+        {
             var action = from.MoveTo(to);
 
-            undoStack.Push(ActionCommand.SimpleMove(action));
-            redoStack.Clear();
-            GenericAction();
-            board.Turnover();
+            SendMoveToServer(action);
         }
 
         // 캐슬링
@@ -207,12 +204,8 @@ public partial class ActionManager
                 var fromIndex = from.CellIndex;
 
                 var kingAction = from.MoveTo(to);
-                var rookAction = rook.MoveTo(rookTo);
 
-                undoStack.Push(ActionCommand.SimpleMove(kingAction, rookAction));
-                redoStack.Clear();
-                GenericAction();
-                board.Turnover();
+                SendMoveToServer(kingAction);
             }
         }
     }
@@ -225,14 +218,25 @@ public partial class ActionManager
             var targetIdx = new GridIndex(to.X, from.CellIndex.Y);
             var target = board[targetIdx];
 
-            var actionData = target.MoveTo(to);
             var specialData = from.MoveTo(to);
 
-            undoStack.Push(ActionCommand.SimpleMove(actionData, specialData));
-            redoStack.Clear();
-            GenericAction();
-            board.Turnover();
+            SendMoveToServer(specialData);
         }
+    }
+
+    void SendMoveToServer(ActionData action)
+    {
+        if (!TurnManager.Instance.IsMyTurn())
+            return;
+
+        NetAction net = action.ToNetAction();
+
+        PhotonNetwork.RaiseEvent(
+            2, // MoveEventCode
+            net,
+            new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient },
+            SendOptions.SendReliable
+        );
     }
 
     public bool HasSelection => selection.HasValue;
