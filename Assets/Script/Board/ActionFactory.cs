@@ -8,9 +8,6 @@ public static class ActionFactory
         if (piece == null)
             throw new Exception($"pieceId not found: {net.pieceId}");
 
-        if (piece.CellIndex != net.from)
-            throw new Exception($"piece position mismatch. expected:{net.from} actual:{piece.CellIndex}");
-
-        return piece.MoveTo(net.to);
+        return piece.MoveTo(net.To);
     }
 }
