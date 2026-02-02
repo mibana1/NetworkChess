@@ -35,6 +35,17 @@ public class Pawn : FirstActionPieces
                 p.enpassantTarget = enpassantTarget;
             }
         }
+        public override NetAction ToNetAction()
+        {
+            var net = base.ToNetAction();
+
+            if (promote != null)
+            {
+                net.netMoveType = NetMoveType.Promotion;
+            }
+
+            return net;
+        }
     }
 
     int enpassantTarget = 0;
