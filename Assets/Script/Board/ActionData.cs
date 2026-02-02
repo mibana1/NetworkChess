@@ -14,19 +14,20 @@
     // 캡처된 기물
     public abstract Pieces KillActor { get; }
 
-    public virtual global::MoveType MoveType
-        => KillActor != null ? global::MoveType.Attack : global::MoveType.StandardMove;
+    protected virtual NetMoveType GetNetMoveType()
+    {
+        return KillActor != null
+            ? NetMoveType.Attack
+            : NetMoveType.Move;
+    }
 
     public virtual NetAction ToNetAction()
     {
-        return new NetAction
-        {
-            pieceId = Owner.PieceId,
-            from = From,
-            to = To,
-            netMoveType = (KillActor != null)
-                ? NetMoveType.Attack
-                : NetMoveType.Move
-        };
+        return NetAction.Create(
+            Owner.PieceId,
+            From,
+            To,
+            GetNetMoveType()
+        );
     }
 }
