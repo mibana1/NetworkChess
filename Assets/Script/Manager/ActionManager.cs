@@ -4,6 +4,7 @@ using Photon.Realtime;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 public partial class ActionManager
 {
@@ -226,14 +227,27 @@ public partial class ActionManager
 
     void SendMoveToServer(ActionData action)
     {
-        if (!TurnManager.Instance.IsMyTurn())
+        if (TurnManager.Instance == null)
+            Debug.LogError("TurnManager.Instance NULL");
+
+        if (action == null)
+        {
+            Debug.LogError("ActionData NULL");
             return;
+        }
+
+        if (action.Owner == null)
+        {
+            Debug.LogError("ActionData.Owner NULL");
+            return;
+        }
 
         NetAction net = action.ToNetAction();
+        object[] payload = NetActionPhotonCodec.Encode(net);
 
         PhotonNetwork.RaiseEvent(
             2, // MoveEventCode
-            net,
+            payload,
             new RaiseEventOptions { Receivers = ReceiverGroup.MasterClient },
             SendOptions.SendReliable
         );
