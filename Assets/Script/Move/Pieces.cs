@@ -1,17 +1,10 @@
 ﻿using UnityEngine;
 
-/// <summary>
-/// 체스 말의 공통 베이스 클래스.
-/// - 보드 상의 위치 관리
-/// - 이동 처리
-/// - 캡처 처리
-/// - Undo / Redo 를 위한 ActionData 생성
-/// </summary>
 public abstract class Pieces : ActorComponent
 {
     /// <summary>
-    /// 말 이동에 대한 기본 ActionData.
-    /// Undo / Redo 를 위해 이동 전/후 위치와 캡처된 말을 저장한다.
+    /// 말 이동에 대한 기본 액션데이터
+    /// Undo, Redo 를 위해 이동 전, 후 위치와 캡처된 말을 저장한다.
     /// </summary>
     protected class MyActionData : ActionData
     {
@@ -30,7 +23,6 @@ public abstract class Pieces : ActorComponent
 
         /// <summary>
         /// ActionData 복제용 생성자.
-        /// FirstActionPieces / Pawn 등에서 확장 ActionData를 만들 때 사용됨.
         /// </summary>
         public MyActionData(ActionData data)
         {
@@ -64,6 +56,12 @@ public abstract class Pieces : ActorComponent
     ChessTeam team;
     GridIndex cellIndex;
     protected ChessBoard board;
+    public int PieceId { get; private set; }
+
+    public void SetPieceId(int id)
+    {
+        PieceId = id;
+    }
 
     protected void Construct(ChessTeam team, GridIndex startIndex, ChessBoard board)
     {
@@ -95,8 +93,10 @@ public abstract class Pieces : ActorComponent
         return new MyActionData(this, from, targetIndex, captured);
     }
 
+
+
     /// <summary>
-    /// 턴 종료 시 호출 (Pawn enpassant 등)
+    /// 턴 종료 시 호출
     /// </summary>
     public virtual void Turnover() { }
 

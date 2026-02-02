@@ -127,6 +127,18 @@ public class ChessBoard : ActorComponent
         }
     }
 
+    public Pieces GetPieceById(int id)
+    {
+        for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 8; x++)
+            {
+                var p = this[new GridIndex(x, y)];
+                if (p != null && p.PieceId == id)
+                    return p;
+            }
+        return null;
+    }
+
     void OnClicked()
     {
         actionManager.AddClick(highlightManager.HoverIndex);
