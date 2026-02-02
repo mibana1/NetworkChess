@@ -90,19 +90,20 @@ public class TurnManager : MonoBehaviourPun
     {
         if (photonEvent.Code == MoveEventCode)
         {
-            NetAction net = (NetAction)photonEvent.CustomData;
+            object[] payload = (object[])photonEvent.CustomData;
+            NetAction net = NetActionPhotonCodec.Decode(payload);
 
             if (PhotonNetwork.IsMasterClient)
             {
-                // 서버 권한 이동 적용
-                ApplyMove(net);
-
-                // 턴 변경
-                EndTurn();
+                if (photonEvent.Sender != PhotonNetwork.LocalPlayer.ActorNumber)
+                {
+                    ApplyMove(net);
+                    EndTurn();
+                }
 
                 PhotonNetwork.RaiseEvent(
                     MoveEventCode,
-                    net,
+                    payload,
                     new RaiseEventOptions { Receivers = ReceiverGroup.All },
                     SendOptions.SendReliable
                 );
@@ -165,9 +166,9 @@ public class TurnManager : MonoBehaviourPun
         if (king is not King)
             return;
 
-        int y = net.to.Y;
+        int y = net.To.Y;
 
-        if (net.to.X == 6)
+        if (net.To.X == 6)
         {
             var rookFrom = new GridIndex(7, y);
             var rookTo = new GridIndex(5, y);
@@ -178,7 +179,7 @@ public class TurnManager : MonoBehaviourPun
                 rookAction.Redo();
             }
         }
-        else if (net.to.X == 2)
+        else if (net.To.X == 2)
         {
             var rookFrom = new GridIndex(0, y);
             var rookTo = new GridIndex(3, y);
@@ -199,10 +200,10 @@ public class TurnManager : MonoBehaviourPun
             return;
 
         int killedY = p.Team == ChessTeam.White
-            ? net.to.Y + 1
-            : net.to.Y - 1;
+            ? net.To.Y + 1
+            : net.To.Y - 1;
 
-        var killedIndex = new GridIndex(net.to.X, killedY);
+        var killedIndex = new GridIndex(net.To.X, killedY);
         Pieces killedPawn = board[killedIndex];
 
         if (killedPawn != null)
