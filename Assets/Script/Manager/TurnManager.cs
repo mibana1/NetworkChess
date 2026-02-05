@@ -8,7 +8,11 @@ public class TurnManager : MonoBehaviourPun
     public static TurnManager Instance;
 
     private const byte TurnChangeEventCode = 1;
+
+    // 요청: Client -> Master
     private const byte MoveEventCode = 2;
+
+    // 결과: Master -> All
     private const byte MoveBroadcastCode = 3;
 
     public ChessTeam CurrentTurn { get; private set; }
@@ -17,7 +21,6 @@ public class TurnManager : MonoBehaviourPun
 
     private void Awake()
     {
-        // 싱글톤 보장
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -25,8 +28,6 @@ public class TurnManager : MonoBehaviourPun
         }
 
         Instance = this;
-
-        // 체스는 항상 백 선
         CurrentTurn = ChessTeam.White;
     }
 
@@ -40,48 +41,44 @@ public class TurnManager : MonoBehaviourPun
         PhotonNetwork.NetworkingClient.EventReceived -= OnEventReceived;
     }
 
-    public void SetBoard(ChessBoard chessBoard)
-    {
-        board = chessBoard;
-    }
+    public void SetBoard(ChessBoard chessBoard) => board = chessBoard;
 
-    /// <summary>
-    /// 내 턴인지 확인
-    /// </summary>
     public bool IsMyTurn()
     {
         return ChessGameManager.Instance.MyColor == CurrentTurn;
     }
 
-    /// <summary>
-    /// MasterClient만 턴 변경
-    /// </summary>
     public void EndTurn()
     {
         if (!PhotonNetwork.IsMasterClient)
             return;
 
-        SwitchTurn();
+        CurrentTurn = (CurrentTurn == ChessTeam.White) ? ChessTeam.Black : ChessTeam.White;
         BroadcastTurn();
-    }
-
-    private void SwitchTurn()
-    {
-        CurrentTurn = (CurrentTurn == ChessTeam.White)
-            ? ChessTeam.Black
-            : ChessTeam.White;
     }
 
     private void BroadcastTurn()
     {
-        object[] data = new object[]
-        {
-            (int)CurrentTurn
-        };
+        object[] data = new object[] { (int)CurrentTurn };
 
         PhotonNetwork.RaiseEvent(
             TurnChangeEventCode,
             data,
+            new RaiseEventOptions { Receivers = ReceiverGroup.All },
+            SendOptions.SendReliable
+        );
+    }
+    public void MasterApplyFromLocal(NetAction net, object[] payload)
+    {
+        if (!PhotonNetwork.IsMasterClient)
+            return;
+
+        ApplyMove(net);
+        EndTurn();
+
+        PhotonNetwork.RaiseEvent(
+            MoveBroadcastCode,
+            payload,
             new RaiseEventOptions { Receivers = ReceiverGroup.All },
             SendOptions.SendReliable
         );
@@ -92,6 +89,10 @@ public class TurnManager : MonoBehaviourPun
         if (photonEvent.Code == MoveEventCode)
         {
             if (!PhotonNetwork.IsMasterClient)
+                return;
+
+            int myActor = PhotonNetwork.LocalPlayer.ActorNumber;
+            if (photonEvent.Sender == myActor)
                 return;
 
             object[] payload = (object[])photonEvent.CustomData;
@@ -109,16 +110,11 @@ public class TurnManager : MonoBehaviourPun
             return;
         }
 
+
         if (photonEvent.Code == MoveBroadcastCode)
         {
-            int sender = photonEvent.Sender;
-            int myActor = PhotonNetwork.LocalPlayer.ActorNumber;
-
             if (PhotonNetwork.IsMasterClient)
-            {
-                if (sender == myActor)
-                    return;
-            }
+                return;
 
             object[] payload = (object[])photonEvent.CustomData;
             NetAction net = NetActionPhotonCodec.Decode(payload);
@@ -136,14 +132,9 @@ public class TurnManager : MonoBehaviourPun
         }
     }
 
-
-
-
-
-
     private void ApplyMove(NetAction net)
     {
-        Debug.Log($"[ApplyMove] code? pieceId={net.pieceId} {net.From}->{net.To} actor={PhotonNetwork.LocalPlayer.ActorNumber} master={PhotonNetwork.IsMasterClient}");
+        Debug.Log($"[ApplyMove] pieceId={net.pieceId} {net.From}->{net.To} actor={PhotonNetwork.LocalPlayer.ActorNumber} master={PhotonNetwork.IsMasterClient}");
 
         if (board == null)
         {
@@ -151,19 +142,13 @@ public class TurnManager : MonoBehaviourPun
             return;
         }
 
-        // 기본 이동
         var action = ActionFactory.Apply(net, board);
         action.Redo();
 
-        // 특수 수 처리
         ApplySpecialMove(net);
 
         board.ActionMgr.OnMoveApplied();
-        Debug.Log($"[ApplyMove] pieceId={net.pieceId} from={net.From} to={net.To} type={net.netMoveType}");
-        Debug.Log($"[ApplyMove] sender applied on actor={PhotonNetwork.LocalPlayer.ActorNumber} master={PhotonNetwork.IsMasterClient}");
-
     }
-
 
     private void ApplySpecialMove(NetAction net)
     {
@@ -172,22 +157,18 @@ public class TurnManager : MonoBehaviourPun
             case NetMoveType.Castling:
                 ApplyCastling(net);
                 break;
-
             case NetMoveType.EnPassant:
                 ApplyEnPassant(net);
                 break;
-
             case NetMoveType.Promotion:
                 break;
         }
     }
 
-    // 캐슬링
     private void ApplyCastling(NetAction net)
     {
         Pieces king = board.GetPieceById(net.pieceId);
-        if (king is not King)
-            return;
+        if (king is not King) return;
 
         int y = net.To.Y;
 
@@ -198,8 +179,7 @@ public class TurnManager : MonoBehaviourPun
 
             if (board[rookFrom] is Rook rook)
             {
-                var rookAction = rook.MoveTo(rookTo);
-                rookAction.Redo();
+                rook.MoveTo(rookTo).Redo();
             }
         }
         else if (net.To.X == 2)
@@ -209,31 +189,22 @@ public class TurnManager : MonoBehaviourPun
 
             if (board[rookFrom] is Rook rook)
             {
-                var rookAction = rook.MoveTo(rookTo);
-                rookAction.Redo();
+                rook.MoveTo(rookTo).Redo();
             }
         }
     }
 
-    // 앙파상
     private void ApplyEnPassant(NetAction net)
     {
         Pieces pawn = board.GetPieceById(net.pieceId);
-        if (pawn is not Pawn p)
-            return;
+        if (pawn is not Pawn p) return;
 
-        int killedY = p.Team == ChessTeam.White
-            ? net.To.Y + 1
-            : net.To.Y - 1;
-
+        int killedY = (p.Team == ChessTeam.White) ? net.To.Y + 1 : net.To.Y - 1;
         var killedIndex = new GridIndex(net.To.X, killedY);
 
         Pieces killedPawn = board[killedIndex];
-        if (killedPawn == null)
-            return;
-
-        if (killedPawn.Team == p.Team)
-            return;
+        if (killedPawn == null) return;
+        if (killedPawn.Team == p.Team) return;
 
         Destroy(killedPawn.gameObject);
         board[killedIndex] = null;

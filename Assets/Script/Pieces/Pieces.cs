@@ -80,18 +80,27 @@ public abstract class Pieces : ActorComponent
     public virtual ActionData MoveTo(GridIndex targetIndex)
     {
         var from = cellIndex;
-        cellIndex = targetIndex;
 
+        if (from == targetIndex)
+            return new MyActionData(this, from, targetIndex, null);
+
+        cellIndex = targetIndex;
         transform.localPosition = board.QueryLocation(targetIndex);
 
         var captured = board[targetIndex];
+
+        if (captured == this)
+            captured = null;
+
         board[from] = null;
         board[targetIndex] = this;
 
-        captured?.gameObject.SetActive(false);
+        if (captured != null)
+            captured.gameObject.SetActive(false);
 
         return new MyActionData(this, from, targetIndex, captured);
     }
+
 
 
 
