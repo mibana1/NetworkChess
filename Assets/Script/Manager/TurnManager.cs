@@ -9,6 +9,7 @@ public class TurnManager : MonoBehaviourPun
 
     private const byte TurnChangeEventCode = 1;
     private const byte MoveEventCode = 2;
+    private const byte MoveBroadcastCode = 3;
 
     public ChessTeam CurrentTurn { get; private set; }
 
@@ -90,28 +91,39 @@ public class TurnManager : MonoBehaviourPun
     {
         if (photonEvent.Code == MoveEventCode)
         {
+            if (!PhotonNetwork.IsMasterClient)
+                return;
+
             object[] payload = (object[])photonEvent.CustomData;
             NetAction net = NetActionPhotonCodec.Decode(payload);
 
+            ApplyMove(net);
+            EndTurn();
+
+            PhotonNetwork.RaiseEvent(
+                MoveBroadcastCode,
+                payload,
+                new RaiseEventOptions { Receivers = ReceiverGroup.All },
+                SendOptions.SendReliable
+            );
+            return;
+        }
+
+        if (photonEvent.Code == MoveBroadcastCode)
+        {
+            int sender = photonEvent.Sender;
+            int myActor = PhotonNetwork.LocalPlayer.ActorNumber;
+
             if (PhotonNetwork.IsMasterClient)
             {
-                if (photonEvent.Sender != PhotonNetwork.LocalPlayer.ActorNumber)
-                {
-                    ApplyMove(net);
-                    EndTurn();
-                }
+                if (sender == myActor)
+                    return;
+            }
 
-                PhotonNetwork.RaiseEvent(
-                    MoveEventCode,
-                    payload,
-                    new RaiseEventOptions { Receivers = ReceiverGroup.All },
-                    SendOptions.SendReliable
-                );
-            }
-            else
-            {
-                ApplyMove(net);
-            }
+            object[] payload = (object[])photonEvent.CustomData;
+            NetAction net = NetActionPhotonCodec.Decode(payload);
+
+            ApplyMove(net);
             return;
         }
 
@@ -119,14 +131,20 @@ public class TurnManager : MonoBehaviourPun
         {
             object[] data = (object[])photonEvent.CustomData;
             CurrentTurn = (ChessTeam)(int)data[0];
-
             Debug.Log($"[TurnManager] 현재 턴: {CurrentTurn}");
             return;
         }
     }
 
+
+
+
+
+
     private void ApplyMove(NetAction net)
     {
+        Debug.Log($"[ApplyMove] code? pieceId={net.pieceId} {net.From}->{net.To} actor={PhotonNetwork.LocalPlayer.ActorNumber} master={PhotonNetwork.IsMasterClient}");
+
         if (board == null)
         {
             Debug.LogError("[TurnManager] ChessBoard reference is null.");
@@ -139,6 +157,11 @@ public class TurnManager : MonoBehaviourPun
 
         // 특수 수 처리
         ApplySpecialMove(net);
+
+        board.ActionMgr.OnMoveApplied();
+        Debug.Log($"[ApplyMove] pieceId={net.pieceId} from={net.From} to={net.To} type={net.netMoveType}");
+        Debug.Log($"[ApplyMove] sender applied on actor={PhotonNetwork.LocalPlayer.ActorNumber} master={PhotonNetwork.IsMasterClient}");
+
     }
 
 
@@ -204,12 +227,15 @@ public class TurnManager : MonoBehaviourPun
             : net.To.Y - 1;
 
         var killedIndex = new GridIndex(net.To.X, killedY);
-        Pieces killedPawn = board[killedIndex];
 
-        if (killedPawn != null)
-        {
-            Destroy(killedPawn.gameObject);
-            board[killedIndex] = null;
-        }
+        Pieces killedPawn = board[killedIndex];
+        if (killedPawn == null)
+            return;
+
+        if (killedPawn.Team == p.Team)
+            return;
+
+        Destroy(killedPawn.gameObject);
+        board[killedIndex] = null;
     }
 }
