@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "895715748686",
+    "project_id": "networkchess",
+    "storage_bucket": "networkchess.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:895715748686:android:9b973b772dcebeeb084c1f",
+        "android_client_info": {
+          "package_name": "com.njh.networkchess"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDijUH4WIDTEhbDoNAsxtL6-B1IC32eT3Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
