@@ -39,40 +39,30 @@ public partial class ActionManager
 
     public void Undo()
     {
-        if (undoStack.Count != 0) {
-            var undo = undoStack.Pop();
-            var action = undo.Action;
-            var special = undo.Special;
-
-            special?.Undo();
-            action.Undo();
-
-            redoStack.Push(undo);
-            GenericAction();
-        }
+        // 멀티 authoritative 구조에서는 Undo/Redo는 일단 비활성 권장
+        // (서버와 동기화까지 같이 설계해야 함)
+        Debug.LogWarning("[ActionManager] Undo disabled in multiplayer authoritative mode.");
     }
 
     public void Redo()
     {
-        if (redoStack.Count != 0) {
-            var redo = redoStack.Pop();
-            var action = redo.Action;
-            var special = redo.Special;
+        Debug.LogWarning("[ActionManager] Redo disabled in multiplayer authoritative mode.");
+    }
 
-            action.Redo();
-            special?.Redo();
-
-            undoStack.Push(redo);
-            GenericAction();
-        }
+    public void OnMoveApplied()
+    {
+        GenericAction();
+        board.Turnover();
     }
 
     void GenericAction()
     {
-        Func<MoveSequence, int> getMovableCount = (seq) => {
+        Func<MoveSequence, int> getMovableCount = (seq) =>
+        {
             int count = 0;
-            
-            for (int i = 0; i < seq.SequenceCount; ++i) {
+
+            for (int i = 0; i < seq.SequenceCount; ++i)
+            {
                 var single = seq[i];
                 count += single.Count;
             }
@@ -83,14 +73,12 @@ public partial class ActionManager
         SwitchActionTeam();
         buildedData.Rebuild(board);
 
-        var currentTeams = from Pieces p in board.GetPieces()
-                           where p.Team == actionTeam
-                           select p;
-
         int movableCount = 0;
 
-        foreach (var p in board.GetPieces()) {
-            if (p?.Team == actionTeam) {
+        foreach (var p in board.GetPieces())
+        {
+            if (p?.Team == actionTeam)
+            {
                 var seq = p.QueryMovable(MoveType.StandardMove);
                 seq.Build(board, MoveType.StandardMove);
                 movableCount += getMovableCount(seq);
@@ -99,18 +87,22 @@ public partial class ActionManager
                 seq.Build(board, MoveType.Attack);
                 movableCount += getMovableCount(seq);
 
-                if (p is Pawn k) {
+                if (p is Pawn k)
+                {
                     seq = k.QueryEnpassant(board);
                     movableCount += getMovableCount(seq);
                 }
             }
         }
 
-        if (movableCount == 0) {
-            if (buildedData.IsChecked(actionTeam)) {
+        if (movableCount == 0)
+        {
+            if (buildedData.IsChecked(actionTeam))
+            {
                 GameoverEvent?.Invoke(this, GameoverType.Checkmate);
             }
-            else {
+            else
+            {
                 GameoverEvent?.Invoke(this, GameoverType.Stalemate);
             }
         }
@@ -118,38 +110,30 @@ public partial class ActionManager
 
     void SwitchActionTeam()
     {
-        if (actionTeam == ChessTeam.White) {
-            actionTeam = ChessTeam.Black;
-        }
-        else {
-            actionTeam = ChessTeam.White;
-        }
+        actionTeam = (actionTeam == ChessTeam.White) ? ChessTeam.Black : ChessTeam.White;
     }
+
+    // ============================================================
+    // ✅ 여기부터 핵심: MoveTo() 절대 호출 금지 -> 요청만 보냄
+    // ============================================================
 
     void AddAttack(Pieces from, Pieces to)
     {
-        if (from.Team == to.Team) {
-            if (from == to) {
-                // 자신을 한 번 더 클릭하면 선택 해제.
-                selection = null;
-            }
-            else {
-                // 같은 팀의 다른 말을 클릭하면 그 말 선택.
-                selection = to.CellIndex;
-            }
+        if (from.Team == to.Team)
+        {
+            if (from == to) selection = null;
+            else selection = to.CellIndex;
+            return;
         }
-        else {
-            // 다른 팀의 말을 선택하면 공격.
-            var seq = from.QueryMovable(MoveType.Attack);
-            seq.Build(board, MoveType.Attack);
 
-            if (seq.ContainsMove(to.CellIndex))
-            {
-                var action = from.MoveTo(to.CellIndex);
+        var seq = from.QueryMovable(MoveType.Attack);
+        seq.Build(board, MoveType.Attack);
 
-                SendMoveToServer(action);
-            }
-        }
+        if (!seq.ContainsMove(to.CellIndex))
+            return;
+
+        // 🔴 로컬 적용 금지: from.MoveTo(...) 하지 말 것
+        SendMoveToServer(from, from.CellIndex, to.CellIndex, NetMoveType.Attack);
     }
 
     void AddMove(Pieces from, GridIndex to)
@@ -159,19 +143,23 @@ public partial class ActionManager
 
         if (seq.ContainsMove(to))
         {
-            var action = from.MoveTo(to);
-
-            SendMoveToServer(action);
+            // 🔴 로컬 적용 금지
+            SendMoveToServer(from, from.CellIndex, to, NetMoveType.Move);
+            return;
         }
 
         // 캐슬링
-        else if (from is King king) {
+        if (from is King king)
+        {
             AddCastling(king, to);
+            return;
         }
 
         // 앙파상
-        else if (from is Pawn pawn) {
+        if (from is Pawn pawn)
+        {
             AddEnpassant(pawn, to);
+            return;
         }
     }
 
@@ -180,69 +168,48 @@ public partial class ActionManager
         var castlingSeq = from.QueryCastling(board, out var bQueenSide, out var bKingSide);
         castlingSeq.Build(board, MoveType.StandardMove);
 
-        if (castlingSeq.ContainsMove(to)) {
-            var kingX = from.CellIndex.X;
-            var kingY = from.CellIndex.Y;
+        if (!castlingSeq.ContainsMove(to))
+            return;
 
-            Rook rook = null;
-            GridIndex rookFrom;
-            GridIndex rookTo;
-            if (to.X > kingX && bKingSide) {
-                rookFrom = new GridIndex(7, kingY);
-                rook = board[rookFrom] as Rook;
-                rookTo = to + new GridIndex(-1, 0);
-            }
-            else if (to.X < kingX && bQueenSide) {
-                rookFrom = new GridIndex(0, kingY);
-                rook = board[rookFrom] as Rook;
-                rookTo = to + new GridIndex(+1, 0);
-            }
-            else {
-                throw new Exception("Unspecified exception");
-            }
-
-            if (rook != null) {
-                var fromIndex = from.CellIndex;
-
-                var kingAction = from.MoveTo(to);
-
-                SendMoveToServer(kingAction);
-            }
-        }
+        // 🔴 로컬에서 rook/king MoveTo 절대 하지 말 것
+        // 캐슬링은 king 이동만 보내고, TurnManager에서 rook 이동 재현
+        SendMoveToServer(from, from.CellIndex, to, NetMoveType.Castling);
     }
 
     void AddEnpassant(Pawn from, GridIndex to)
     {
         var enpassantSeq = from.QueryEnpassant(board);
 
-        if (enpassantSeq.ContainsMove(to)) {
-            var targetIdx = new GridIndex(to.X, from.CellIndex.Y);
-            var target = board[targetIdx];
+        if (!enpassantSeq.ContainsMove(to))
+            return;
 
-            var specialData = from.MoveTo(to);
-
-            SendMoveToServer(specialData);
-        }
+        // 🔴 로컬에서 target/pawn MoveTo 금지
+        // 앙파상은 pawn 이동만 보내고, TurnManager에서 잡힌 폰 제거 재현
+        SendMoveToServer(from, from.CellIndex, to, NetMoveType.EnPassant);
     }
 
-    void SendMoveToServer(ActionData action)
+    // ============================================================
+    // ✅ 서버로 "요청"만 보내는 함수 (NetAction 직접 생성)
+    // ============================================================
+    void SendMoveToServer(Pieces piece, GridIndex from, GridIndex to, NetMoveType type)
     {
         if (TurnManager.Instance == null)
-            Debug.LogError("TurnManager.Instance NULL");
-
-        if (action == null)
         {
-            Debug.LogError("ActionData NULL");
+            Debug.LogError("[SendMoveToServer] TurnManager.Instance NULL");
             return;
         }
 
-        if (action.Owner == null)
+        // 🔴 내 턴 아니면 요청 금지 (입력 차단이 ChessBoard에도 있어야 더 안전)
+        if (!TurnManager.Instance.IsMyTurn())
+            return;
+
+        if (piece == null)
         {
-            Debug.LogError("ActionData.Owner NULL");
+            Debug.LogError("[SendMoveToServer] piece is NULL");
             return;
         }
 
-        NetAction net = action.ToNetAction();
+        NetAction net = NetAction.Create(piece.PieceId, from, to, type);
         object[] payload = NetActionPhotonCodec.Encode(net);
 
         PhotonNetwork.RaiseEvent(

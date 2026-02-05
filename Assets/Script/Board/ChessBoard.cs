@@ -10,6 +10,7 @@ public class ChessBoard : ActorComponent
     ActionManager actionManager;
     HighlightManager highlightManager;
 
+    public ActionManager ActionMgr => actionManager;
 
     [Header("Highlight Materials")]
     [SerializeField] Material hoverMaterial;
@@ -141,6 +142,10 @@ public class ChessBoard : ActorComponent
 
     void OnClicked()
     {
+        if (!TurnManager.Instance.IsMyTurn())
+        {
+            return;
+        }
         actionManager.AddClick(highlightManager.HoverIndex);
 
         if (actionManager.HasSelection)

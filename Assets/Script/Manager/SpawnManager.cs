@@ -23,6 +23,7 @@ public class SpawnManager : MonoBehaviour
     ChessBoard board;
 
     Dictionary<(Type, ChessTeam), GameObject> prefabMap;
+    int nextPieceId = 0;
 
     public void Init(ChessBoard board)
     {
@@ -68,17 +69,19 @@ public class SpawnManager : MonoBehaviour
         go.name = $"{team} {typeof(T).Name}";
 
         var component = go.AddActorComponent<T>(team, gridIndex, board);
-        board[gridIndex] = component;
 
+        component.SetPieceId(nextPieceId);
+        nextPieceId++;
+
+        board[gridIndex] = component;
         go.transform.SetParent(board.transform, false);
 
         return component;
     }
 
+
     public T SpawnActor<T>(int x, int y, ChessTeam team) where T : Pieces
         => SpawnActor<T>(new GridIndex(x, y), team);
-
-    // ---------------- 초기 배치 ----------------
 
     public void InitialSpawn()
     {

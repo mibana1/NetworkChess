@@ -9,12 +9,28 @@ public class ChessGameManager : MonoBehaviourPun
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         Instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
+
+    private void Start()
+    {
+        Debug.Log(
+            $"[Photon][InGame] IsMaster={PhotonNetwork.IsMasterClient}, " +
+            $"Actor={PhotonNetwork.LocalPlayer.ActorNumber}, " +
+            $"PlayerCount={PhotonNetwork.CurrentRoom?.PlayerCount}"
+        );
 
         MyColor = PhotonNetwork.IsMasterClient
             ? ChessTeam.White
             : ChessTeam.Black;
 
-        Debug.Log($"³» »ö»ó: {MyColor}");
+        Debug.Log($"[MyColor] {MyColor}");
     }
 }
