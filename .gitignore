@@ -55,6 +55,8 @@ ExportedObj/
 *.opendb
 *.VC.db
 /Assets/AssetStore/
+/Assets/Firebase/
+/Assets/Photon/
 
 # Unity3D generated meta files
 *.pidb.meta
