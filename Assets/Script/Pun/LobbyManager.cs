@@ -13,11 +13,21 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     [SerializeField] TMP_InputField joinRoomInput;
 
     [SerializeField] GameObject roomPrefab;
+    [SerializeField] GameObject CreateInputFieldPanel;
+    [SerializeField] GameObject JoinInputFieldPanel;
     [SerializeField] Transform roomListpanel;
 
     private void Start()
     {
         PhotonNetwork.JoinLobby();
+    }
+    public void CreatRoomButton()
+    {
+        CreateInputFieldPanel.SetActive(true);
+    }
+    public void CreatRoomButtonExit()
+    {
+        CreateInputFieldPanel.SetActive(false);
     }
 
     public void CreateRoom()
@@ -26,6 +36,14 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         Debug.Log(createRoomInput.text + "방이 생성 되었습니다");
     }
 
+    public void joinRoomButton()
+    {
+        JoinInputFieldPanel.SetActive(true);
+    }
+    public void joinRoomButtonExit()
+    {
+        JoinInputFieldPanel.SetActive(false);
+    }
     public void joinRoom()
     {
         PhotonNetwork.JoinRoom(joinRoomInput.text);

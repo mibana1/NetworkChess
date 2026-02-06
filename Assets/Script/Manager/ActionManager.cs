@@ -32,8 +32,8 @@ public partial class ActionManager
         actionState = actionState.Update(click);
     }
 
-    public void Undo() => Debug.LogWarning("[ActionManager] Undo disabled in multiplayer authoritative mode.");
-    public void Redo() => Debug.LogWarning("[ActionManager] Redo disabled in multiplayer authoritative mode.");
+    public void Undo() => Debug.LogWarning("Undo.");
+    public void Redo() => Debug.LogWarning("Redo");
 
     public void OnMoveApplied()
     {
@@ -134,7 +134,7 @@ public partial class ActionManager
     {
         if (TurnManager.Instance == null)
         {
-            Debug.LogError("[SendMoveToServer] TurnManager.Instance NULL");
+            Debug.LogError("Instance 없습니다");
             return;
         }
 
@@ -143,7 +143,7 @@ public partial class ActionManager
 
         if (piece == null)
         {
-            Debug.LogError("[SendMoveToServer] piece is NULL");
+            Debug.LogError("기물이 없습니다");
             return;
         }
 

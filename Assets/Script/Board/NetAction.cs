@@ -18,11 +18,9 @@ public struct NetAction
     // 이동 타입
     public NetMoveType netMoveType;
 
-    // ===== 편의 프로퍼티 (로컬용) =====
     public GridIndex From => new GridIndex(fromX, fromY);
     public GridIndex To => new GridIndex(toX, toY);
 
-    // ===== 생성 헬퍼 =====
     public static NetAction Create(
         int pieceId,
         GridIndex from,

@@ -4,7 +4,6 @@ using System.Collections.Generic;
 
 public class SpawnManager : MonoBehaviour
 {
-    [Header("White Pieces")]
     [SerializeField] GameObject whiteKingPrefab;
     [SerializeField] GameObject whiteQueenPrefab;
     [SerializeField] GameObject whiteBishopPrefab;
@@ -12,7 +11,6 @@ public class SpawnManager : MonoBehaviour
     [SerializeField] GameObject whiteRookPrefab;
     [SerializeField] GameObject whitePawnPrefab;
 
-    [Header("Black Pieces")]
     [SerializeField] GameObject blackKingPrefab;
     [SerializeField] GameObject blackQueenPrefab;
     [SerializeField] GameObject blackBishopPrefab;
@@ -46,7 +44,7 @@ public class SpawnManager : MonoBehaviour
     void Map<T>(GameObject white, GameObject black) where T : Pieces
     {
         if (white == null || black == null)
-            Debug.LogError($"Prefab not assigned: {typeof(T).Name}");
+            Debug.LogError($"프리팹: {typeof(T).Name}");
 
         prefabMap[(typeof(T), ChessTeam.White)] = white;
         prefabMap[(typeof(T), ChessTeam.Black)] = black;

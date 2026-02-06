@@ -51,7 +51,6 @@ public class Pawn : FirstActionPieces
             if (promote != null)
                 return NetMoveType.Promotion;
 
-            // 앙파상은 Pawn만 알 수 있음
             if (KillActor is Pawn)
                 return NetMoveType.EnPassant;
 
@@ -153,7 +152,7 @@ public class Pawn : FirstActionPieces
         return seq;
     }
 
-    // ---------------- 내부 이동 생성 ----------------
+    // 내부 이동 생성
 
     MoveSequence QueryMove()
     {

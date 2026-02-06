@@ -6,7 +6,7 @@ public static class ActionFactory
     {
         Pieces piece = board.GetPieceById(net.pieceId);
         if (piece == null)
-            throw new Exception($"pieceId not found: {net.pieceId}");
+            throw new Exception($"pieceId: {net.pieceId}");
 
         return piece.MoveTo(net.To);
     }

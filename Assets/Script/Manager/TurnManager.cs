@@ -9,10 +9,8 @@ public class TurnManager : MonoBehaviourPun
 
     private const byte TurnChangeEventCode = 1;
 
-    // 요청: Client -> Master
     private const byte MoveEventCode = 2;
 
-    // 결과: Master -> All
     private const byte MoveBroadcastCode = 3;
 
     public ChessTeam CurrentTurn { get; private set; }
@@ -127,18 +125,15 @@ public class TurnManager : MonoBehaviourPun
         {
             object[] data = (object[])photonEvent.CustomData;
             CurrentTurn = (ChessTeam)(int)data[0];
-            Debug.Log($"[TurnManager] 현재 턴: {CurrentTurn}");
+            Debug.Log($"현재 턴: {CurrentTurn}");
             return;
         }
     }
 
     private void ApplyMove(NetAction net)
     {
-        Debug.Log($"[ApplyMove] pieceId={net.pieceId} {net.From}->{net.To} actor={PhotonNetwork.LocalPlayer.ActorNumber} master={PhotonNetwork.IsMasterClient}");
-
         if (board == null)
         {
-            Debug.LogError("[TurnManager] ChessBoard reference is null.");
             return;
         }
 
